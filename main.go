@@ -32,7 +32,10 @@ func main() {
 	fmt.Println("CREATE SUCCESSFULLY")
 
 	// READ
-	clients, err := client.Read("client_id=1111")
+	clients, err := client.Read(&repository.InstrumentSearchCriteria{
+		Client_ID: 1111,
+		Method_ID: "method",
+	})
 	if err != nil {
 		log.Fatal(err)
 	}

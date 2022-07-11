@@ -3,7 +3,9 @@ package repository
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"strings"
 )
 
 // ClientInstrument ...
@@ -58,15 +60,40 @@ func (r *ClientInstrumentDB) Create(client *ClientInstrument) error {
 	return nil
 }
 
+type InstrumentSearchCriteria struct {
+	Client_ID     int64
+	Instrument_ID string
+	Method_ID     string
+	Name          string
+}
+
 // Find client_instrument by your own condition.
 // For example:
 //	r.Read("client_id=1003")
-func (r *ClientInstrumentDB) Read(condition string) (*[]ClientInstrument, error) {
+func (r *ClientInstrumentDB) Read(criteria *InstrumentSearchCriteria) (*[]ClientInstrument, error) {
+	conditions := []string{}
+	if criteria.Client_ID != 0 {
+		conditions = append(conditions, fmt.Sprintf("client_id = %d", criteria.Client_ID))
+	}
+	if criteria.Instrument_ID != "" {
+		conditions = append(conditions, fmt.Sprintf("instrument_id = '%s'", criteria.Instrument_ID))
+	}
+	if criteria.Method_ID != "" {
+		conditions = append(conditions, fmt.Sprintf("method_id = '%s'", criteria.Method_ID))
+	}
+	if criteria.Name != "" {
+		conditions = append(conditions, fmt.Sprintf("name = '%s'", criteria.Name))
+	}
+
+	if len(conditions) == 0 {
+		return nil, errors.New("not enough criteria")
+	}
+
 	sql := fmt.Sprintf(`
 	SELECT client_id, instrument_details, instrument_id, method_id, name, is_default
 	FROM client_instruments
 	WHERE %s
-	`, condition)
+	`, strings.Join(conditions, " AND "))
 	var clients []ClientInstrument
 	var client ClientInstrument
 	rows, err := r.db.Query(sql)
