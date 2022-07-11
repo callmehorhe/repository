@@ -67,10 +67,8 @@ type InstrumentSearchCriteria struct {
 	Name          string
 }
 
-// Find client_instrument by your own condition.
-// For example:
-//	r.Read("client_id=1003")
-func (r *ClientInstrumentDB) Read(criteria *InstrumentSearchCriteria) (*[]ClientInstrument, error) {
+// makeCondition
+func makeCondition(criteria *InstrumentSearchCriteria) (string, error) {
 	conditions := []string{}
 	if criteria.Client_ID != 0 {
 		conditions = append(conditions, fmt.Sprintf("client_id = %d", criteria.Client_ID))
@@ -86,14 +84,22 @@ func (r *ClientInstrumentDB) Read(criteria *InstrumentSearchCriteria) (*[]Client
 	}
 
 	if len(conditions) == 0 {
-		return nil, errors.New("not enough criteria")
+		return "", errors.New("not enough criteria")
 	}
+	return strings.Join(conditions, " AND "), nil
+}
 
+// Find client_instrument by criteria.
+func (r *ClientInstrumentDB) Read(criteria *InstrumentSearchCriteria) (*[]ClientInstrument, error) {
+	condition, err := makeCondition(criteria)
+	if err != nil {
+		return nil, err
+	}
 	sql := fmt.Sprintf(`
 	SELECT client_id, instrument_details, instrument_id, method_id, name, is_default
 	FROM client_instruments
 	WHERE %s
-	`, strings.Join(conditions, " AND "))
+	`, condition)
 	var clients []ClientInstrument
 	var client ClientInstrument
 	rows, err := r.db.Query(sql)
@@ -117,9 +123,13 @@ func (r *ClientInstrumentDB) Read(criteria *InstrumentSearchCriteria) (*[]Client
 	return &clients, nil
 }
 
-// Delete client instruent by condition. For example:
+// Update client instruent by condition. For example:
 //	r.Update(client, "is_default=false")
-func (r *ClientInstrumentDB) Update(client *ClientInstrument, condition string) error {
+func (r *ClientInstrumentDB) Update(client *ClientInstrument, criteria *InstrumentSearchCriteria) error {
+	condition, err := makeCondition(criteria)
+	if err != nil {
+		return err
+	}
 	sql := fmt.Sprintf(`
 	UPDATE client_instruments
 	SET client_id=$1, instrument_details=$2, instrument_id=$3, method_id=$4, name=$5, is_default=$6
@@ -139,20 +149,6 @@ func (r *ClientInstrumentDB) Update(client *ClientInstrument, condition string) 
 		client.Name,
 		client.Is_Default,
 	)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-// Delete client_instrument by condition.
-func (r *ClientInstrumentDB) Delete(condition string) error {
-	sql := fmt.Sprintf(`
-	DELETE
-	FROM client_instruments
-	WHERE %s
-	`, condition)
-	_, err := r.db.Exec(sql)
 	if err != nil {
 		return err
 	}

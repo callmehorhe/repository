@@ -52,21 +52,18 @@ func main() {
 	fmt.Println("READ SUCCESSFULLY")
 
 	//UPDATE
-	err = client.Update(&repository.ClientInstrument{
-		Client_ID:  1112,
-		Method_ID:  "method",
-		Name:       "name",
-		Is_Default: false,
-	}, "client_id=1112")
+	err = client.Update(
+		&repository.ClientInstrument{
+			Client_ID:  1112,
+			Method_ID:  "method",
+			Name:       "name",
+			Is_Default: false,
+		}, &repository.InstrumentSearchCriteria{
+			Client_ID: 1111,
+		})
+
 	if err != nil {
 		log.Fatal(err)
 	}
 	fmt.Println("UPDATE SUCCESSFULLY")
-
-	// DELETE
-	err = client.Delete("client_id=1112 OR client_id=1111")
-	if err != nil {
-		log.Panic(err)
-	}
-	fmt.Println("DELETE SUCCESSFULLY")
 }
