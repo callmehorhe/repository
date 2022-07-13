@@ -3,7 +3,9 @@ package repository
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"strings"
 )
 
 // ClientInstrument ...
@@ -19,9 +21,8 @@ type ClientInstrument struct {
 // ClientInstrumentRepository ...
 type ClientInstrumentRepository interface {
 	Create(client *ClientInstrument) error
-	Read(condition string) (*[]ClientInstrument, error)
-	Update(client *ClientInstrument, instrumentId string) error
-	Delete(instrumentId string) error
+	Read(criteria *InstrumentSearchCriteria) (*[]ClientInstrument, error)
+	Update(client *ClientInstrument, criteria *InstrumentSearchCriteria) error
 }
 
 // ClientInstrumentDB ...
@@ -40,10 +41,13 @@ func NewClientInstrumentDB(db *sql.DB) *ClientInstrumentDB {
 func (r *ClientInstrumentDB) Create(client *ClientInstrument) error {
 	sql := `
 	INSERT INTO client_instruments
-	(client_id, instrument_details, instrument_id, method_id, name, is_default)
-	VALUES ($1, $2, $3, $4, $5, $6)
+				(client_id, instrument_details, instrument_id, method_id, name, is_default)
+				 VALUES ($1, $2, $3, $4, $5, $6)
 	`
-
+	var js map[string]interface{}
+	if err := json.Unmarshal(client.Instrument_Details, &js); err != nil {
+		return err
+	}
 	_, err := r.db.Exec(sql,
 		client.Client_ID,
 		client.Instrument_Details,
@@ -58,14 +62,45 @@ func (r *ClientInstrumentDB) Create(client *ClientInstrument) error {
 	return nil
 }
 
-// Find client_instrument by your own condition.
-// For example:
-//	r.Read("client_id=1003")
-func (r *ClientInstrumentDB) Read(condition string) (*[]ClientInstrument, error) {
+type InstrumentSearchCriteria struct {
+	Client_ID     int64
+	Instrument_ID string
+	Method_ID     string
+	Name          string
+}
+
+// makeCondition ...
+func makeCondition(criteria *InstrumentSearchCriteria) (string, error) {
+	conditions := []string{}
+	if criteria.Client_ID != 0 {
+		conditions = append(conditions, fmt.Sprintf("client_id = %d", criteria.Client_ID))
+	}
+	if criteria.Instrument_ID != "" {
+		conditions = append(conditions, fmt.Sprintf("instrument_id = '%s'", criteria.Instrument_ID))
+	}
+	if criteria.Method_ID != "" {
+		conditions = append(conditions, fmt.Sprintf("method_id = '%s'", criteria.Method_ID))
+	}
+	if criteria.Name != "" {
+		conditions = append(conditions, fmt.Sprintf("name = '%s'", criteria.Name))
+	}
+
+	if len(conditions) == 0 {
+		return "", errors.New("not enough criteria")
+	}
+	return fmt.Sprintf("WHERE %s", strings.Join(conditions, " AND ")), nil
+}
+
+// Find client_instrument by criteria.
+func (r *ClientInstrumentDB) Read(criteria *InstrumentSearchCriteria) (*[]ClientInstrument, error) {
+	condition, err := makeCondition(criteria)
+	if err != nil {
+		return nil, err
+	}
 	sql := fmt.Sprintf(`
 	SELECT client_id, instrument_details, instrument_id, method_id, name, is_default
 	FROM client_instruments
-	WHERE %s
+	%s
 	`, condition)
 	var clients []ClientInstrument
 	var client ClientInstrument
@@ -90,42 +125,31 @@ func (r *ClientInstrumentDB) Read(condition string) (*[]ClientInstrument, error)
 	return &clients, nil
 }
 
-// Delete client instruent by condition. For example:
-//	r.Update(client, "is_default=false")
-func (r *ClientInstrumentDB) Update(client *ClientInstrument, condition string) error {
+// Update client instruent by critetia.
+func (r *ClientInstrumentDB) Update(client *ClientInstrument, criteria *InstrumentSearchCriteria) error {
+	condition, err := makeCondition(criteria)
+	if err != nil {
+		return err
+	}
 	sql := fmt.Sprintf(`
 	UPDATE client_instruments
 	SET client_id=$1, instrument_details=$2, instrument_id=$3, method_id=$4, name=$5, is_default=$6
-	WHERE %s
+	%s
 	`, condition)
 
-	instrumentDetails, err := json.Marshal(&client.Instrument_Details)
-	if err != nil {
+	var js map[string]interface{}
+	if err := json.Unmarshal(client.Instrument_Details, &js); err != nil {
 		return err
 	}
 
 	_, err = r.db.Exec(sql,
 		client.Client_ID,
-		instrumentDetails,
+		client.Instrument_Details,
 		client.Instrument_ID,
 		client.Method_ID,
 		client.Name,
 		client.Is_Default,
 	)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-// Delete client_instrument by condition.
-func (r *ClientInstrumentDB) Delete(condition string) error {
-	sql := fmt.Sprintf(`
-	DELETE
-	FROM client_instruments
-	WHERE %s
-	`, condition)
-	_, err := r.db.Exec(sql)
 	if err != nil {
 		return err
 	}
