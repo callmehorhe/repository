@@ -54,10 +54,11 @@ func main() {
 	//UPDATE
 	err = client.Update(
 		&repository.ClientInstrument{
-			Client_ID:  1112,
-			Method_ID:  "method",
-			Name:       "name",
-			Is_Default: false,
+			Client_ID:          1112,
+			Instrument_Details: []byte("{\"test\": 123}"),
+			Method_ID:          "method",
+			Name:               "name",
+			Is_Default:         false,
 		}, &repository.InstrumentSearchCriteria{
 			Client_ID: 1111,
 		})
