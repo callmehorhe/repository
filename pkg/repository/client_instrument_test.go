@@ -66,7 +66,6 @@ func TestCreate(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 			}
-			//test
 		})
 	}
 }
